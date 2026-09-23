@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maker Place Air Quality Checker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="alert-banner" class="alert-banner hidden">
+    ⚠ Ventilation needed — air quality has crossed a caution threshold
+  </div>
+
+  <header class="page-header">
+    <h1>Maker Place Air Quality Checker</h1>
+    <p class="subtitle">
+      Live sensor readings <span id="last-updated">—</span>
+    </p>
+    <nav class="page-nav">
+      <a href="/" class="active">Dashboard</a>
+      <a href="/sensors">Sensor Details</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="cards" class="card-grid">
+      <!-- Cards are rendered by app.js -->
+    </section>
+
+    <section class="charts">
+      <div class="chart-card">
+        <h2>CO2 (ppm) — last readings</h2>
+        <canvas id="co2-chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h2>Dust density (mg/m3) — last readings</h2>
+        <canvas id="dust-chart"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>COMP728 — Maker Place Air Quality Checker</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sensor Details — Maker Place Air Quality Checker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="page-header">
+    <h1>Sensor Details</h1>
+    <p class="subtitle">
+      Raw sensor output vs. processed values <span id="last-updated">—</span>
+    </p>
+    <nav class="page-nav">
+      <a href="/">Dashboard</a>
+      <a href="/sensors" class="active">Sensor Details</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="baseline-bar" id="baseline-bar">
+      <!-- Rendered by sensors.js -->
+    </section>
+
+    <section id="sensor-cards" class="card-grid sensor-detail-grid">
+      <!-- Rendered by sensors.js -->
+    </section>
+  </main>
+
+  <footer>
+    <p>COMP728 — Maker Place Air Quality Checker</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='sensors.js') }}"></script>
+</body>
+</html>
