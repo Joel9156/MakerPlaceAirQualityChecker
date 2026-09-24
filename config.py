@@ -58,3 +58,4 @@ HISTORY_CHART_POINTS = _env_int("HISTORY_CHART_POINTS", 60)
 # Flask server.
 FLASK_HOST = os.environ.get("FLASK_HOST", "0.0.0.0")
 FLASK_PORT = _env_int("FLASK_PORT", 5000)
+FLASK_DEBUG = _env_bool("FLASK_DEBUG", False)

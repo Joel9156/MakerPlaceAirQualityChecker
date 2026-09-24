@@ -157,6 +157,7 @@ def api_sensors():
 
     return jsonify({
         "timestamp": latest.get("timestamp"),
+        "source": latest.get("source"),
         "rows": rows,
         "baselines": baselines,
     })
@@ -180,4 +181,4 @@ def _to_float(value):
 
 
 if __name__ == "__main__":
-    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT, debug=True)
+    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT, debug=config.FLASK_DEBUG)
