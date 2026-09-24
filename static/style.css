@@ -66,12 +66,27 @@ body {
   background: #2563eb;
 }
 
+.mock-badge {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #7c3aed;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.mock-badge.hidden {
+  display: none;
+}
+
 main {
   padding: 8px 40px 48px;
 }
 
 .alert-banner {
-  background: var(--red);
   color: white;
   text-align: center;
   font-size: 1.15rem;
@@ -81,6 +96,11 @@ main {
   top: 0;
   z-index: 10;
 }
+
+/* alert_level: 1=Caution 2=Warning 3=Danger (0=Normal never shows a banner) */
+.alert-banner.level-1 { background: var(--yellow); }
+.alert-banner.level-2 { background: var(--orange); }
+.alert-banner.level-3 { background: var(--red); }
 
 .alert-banner.hidden {
   display: none;

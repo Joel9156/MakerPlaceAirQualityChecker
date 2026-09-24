@@ -59,6 +59,13 @@ function renderCards(payload) {
 
   const banner = document.getElementById("alert-banner");
   banner.classList.toggle("hidden", !statuses.ventilation_alert);
+  banner.classList.remove("level-1", "level-2", "level-3");
+  if (statuses.ventilation_alert) {
+    banner.classList.add(`level-${statuses.alert_level}`);
+  }
+
+  const mockBadge = document.getElementById("mock-badge");
+  mockBadge.classList.toggle("hidden", payload.source !== "mock");
 
   const lastUpdated = document.getElementById("last-updated");
   const ts = payload.timestamp ? new Date(payload.timestamp) : null;
