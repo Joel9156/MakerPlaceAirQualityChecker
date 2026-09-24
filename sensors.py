@@ -133,7 +133,11 @@ class MockReader:
             "humidity_pct": 45.0,
             "pressure_hpa": 1013.0,
             "gas_resistance_ohm": 110000.0,
-            "dust_voltage_v": 0.4,
+            # thresholds.voltage_to_dust_density_mgm3() computes
+            # 0.17*V - 0.1 and clamps negative results to 0, so V must stay
+            # above ~0.588 for the density to read as anything but zero.
+            # This range keeps density roughly in 0.01-0.08 mg/m3.
+            "dust_voltage_v": 0.75,
             "mq2_voltage_v": 0.5,
         }
 
@@ -156,7 +160,7 @@ class MockReader:
     def read_pico(self) -> dict:
         return {
             "co2_ppm": round(self._drift("co2_ppm", 15, 400, 5000)),
-            "dust_voltage_v": round(self._drift("dust_voltage_v", 0.02, 0.35, 1.5), 3),
+            "dust_voltage_v": round(self._drift("dust_voltage_v", 0.03, 0.6, 1.1), 3),
             "mq2_voltage_v": round(self._drift("mq2_voltage_v", 0.02, 0.4, 2.0), 3),
         }
 
