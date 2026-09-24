@@ -95,6 +95,7 @@ logger = logging.getLogger(__name__)
 # Row order for history.csv
 CSV_FIELDS = [
     "timestamp",
+    "source",  # "mock" or "real" - lets old rows never be mistaken for live hardware data
     "co2_ppm",
     "temperature_c",
     "humidity_pct",
@@ -151,11 +152,31 @@ def ensure_data_files():
     if not os.path.exists(config.HISTORY_CSV_PATH):
         with open(config.HISTORY_CSV_PATH, "w", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=CSV_FIELDS).writeheader()
+        return
+
+    with open(config.HISTORY_CSV_PATH, "r", newline="", encoding="utf-8") as f:
+        existing_header = next(csv.reader(f), None)
+
+    if existing_header != CSV_FIELDS:
+        # Old file predates the "source" column (or some other schema
+        # change). Rather than appending mismatched columns under the old
+        # header - or silently overwriting history - move it aside and
+        # start a fresh file with the current header.
+        backup_path = config.HISTORY_CSV_PATH + ".pre-migration.bak"
+        logger.warning(
+            "%s has an outdated header %s (expected %s). "
+            "Moving old file to %s and starting a new one so rows stay aligned with the header.",
+            config.HISTORY_CSV_PATH, existing_header, CSV_FIELDS, backup_path,
+        )
+        os.replace(config.HISTORY_CSV_PATH, backup_path)
+        with open(config.HISTORY_CSV_PATH, "w", newline="", encoding="utf-8") as f:
+            csv.DictWriter(f, fieldnames=CSV_FIELDS).writeheader()
 
 
-def append_history_row(reading: dict, statuses: dict):
+def append_history_row(reading: dict, statuses: dict, source: str):
     row = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source": source,
         "co2_ppm": reading.get("co2_ppm"),
         "temperature_c": reading.get("temperature_c"),
         "humidity_pct": reading.get("humidity_pct"),
@@ -178,9 +199,11 @@ def append_history_row(reading: dict, statuses: dict):
         csv.DictWriter(f, fieldnames=CSV_FIELDS).writerow(row)
 
 
-def write_latest_json(reading: dict, statuses: dict, baseline_gas: float, baseline_mq2: float):
+def write_latest_json(reading: dict, statuses: dict, baseline_gas: float, baseline_mq2: float,
+                       source: str):
     payload = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source": source,  # "mock" or "real" - shown as a badge on the dashboard
         "reading": reading,
         "statuses": statuses,
         "baselines": {
@@ -198,8 +221,10 @@ def run(mock_mode: bool):
     ensure_data_files()
     hub = SensorHub(mock_mode=mock_mode)
     baseline_gas, baseline_mq2 = capture_baseline(hub)
+    source = "mock" if mock_mode else "real"
 
-    logger.info("Starting main read/log loop (interval=%.0fs)...", config.READ_INTERVAL_S)
+    logger.info("Starting main read/log loop (interval=%.0fs, source=%s)...",
+                config.READ_INTERVAL_S, source)
     while True:
         start = time.monotonic()
         reading = hub.read_all()
@@ -209,8 +234,8 @@ def run(mock_mode: bool):
             baseline_mq2_voltage=baseline_mq2,
         )
 
-        append_history_row(reading, statuses)
-        write_latest_json(reading, statuses, baseline_gas, baseline_mq2)
+        append_history_row(reading, statuses, source)
+        write_latest_json(reading, statuses, baseline_gas, baseline_mq2, source)
 
         if statuses.get("ventilation_alert"):
             logger.warning("VENTILATION ALERT - level=%s statuses=%s",

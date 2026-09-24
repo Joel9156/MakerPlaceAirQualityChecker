@@ -5,3 +5,4 @@ __pycache__/
 # generated at runtime, not part of the source
 data/*.csv
 data/*.json
+data/*.bak

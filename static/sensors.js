@@ -83,6 +83,9 @@ async function refresh() {
     renderSensorCards(payload.rows);
     renderBaselines(payload.baselines);
 
+    const mockBadge = document.getElementById("mock-badge");
+    mockBadge.classList.toggle("hidden", payload.source !== "mock");
+
     const lastUpdated = document.getElementById("last-updated");
     const ts = payload.timestamp ? new Date(payload.timestamp) : null;
     lastUpdated.textContent = ts ? `· last updated ${ts.toLocaleTimeString()}` : "";
