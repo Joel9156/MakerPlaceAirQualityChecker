@@ -111,17 +111,24 @@ def evaluate_dust(voltage: float) -> str:
 
 # ---------------------------------------------------------------------------
 # 7) MQ-2 flammable gas/smoke sensor - raw ADC/voltage value, cannot be
-#    converted to an absolute ppm. Judged relative to a "clean air" baseline,
-#    the same way as BME680 VOC. Needs a warm-up period, so readings from the
-#    first 1-2 minutes after power-on must be ignored.
+#    converted to an absolute ppm. A real ppm conversion needs the sensor's
+#    load resistor value and a measured Rs/Ro clean-air ratio from the
+#    datasheet curves - we don't have that calibration data, so this is
+#    judged relative to a "clean air" baseline instead, the same way as
+#    BME680 VOC. Needs a warm-up period, so readings from the first 1-2
+#    minutes after power-on must be ignored.
+#
+#    Thresholds are intentionally sensitive (1.2x/1.5x rather than a looser
+#    ratio) because this is a safety-relevant sensor (flammable gas/smoke) -
+#    the team decided false positives are preferable to false negatives here.
 # ---------------------------------------------------------------------------
 def evaluate_mq2(current_voltage: float, baseline_voltage: float) -> str:
     if baseline_voltage <= 0:
         return "Calibration needed (no baseline)"
     ratio = current_voltage / baseline_voltage
-    if ratio < 1.3:
+    if ratio < 1.2:
         return "Normal"
-    elif ratio < 1.8:
+    elif ratio < 1.5:
         return "Caution"
     else:
         return "Warning"       # voltage well above baseline = gas/smoke detected
