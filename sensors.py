@@ -1,15 +1,18 @@
 """
 Sensor reading module.
 
-Reads:
-  - BME680 over I2C: temperature, humidity, pressure, gas_resistance_ohm
-  - Raspberry Pi Pico over serial: co2_ppm, dust_voltage_v, mq2_voltage_v
-    (Pico sends one JSON line per reading cycle)
+Hardware layout: the BME680, CO2 (SEN0219), dust (GP2Y1014AU0F), and MQ-2
+sensors are all wired to the Pico, not the Pi. The Pico is the only thing
+the Pi talks to for sensor data - one JSON line per reading cycle over USB
+serial, containing all 7 fields:
+  temperature_c, humidity_pct, pressure_hpa, gas_resistance_ohm,
+  co2_ppm, dust_voltage_v, mq2_voltage_v
+dust_voltage_v and mq2_voltage_v are raw sensor voltages, not
+pre-computed density/status - thresholds.py does that conversion on the Pi
+side, so the Pico must not duplicate it.
 
-Both readers expose the same interface whether running against real
-hardware or in mock mode, so main.py doesn't need to care which one it is
-using. On any read failure/timeout, the last known good value is returned
-(or None if there isn't one yet) rather than raising.
+On any read failure/timeout, the last known good value is returned (or None
+if there isn't one yet) rather than raising.
 """
 
 import json
@@ -22,54 +25,14 @@ import config
 logger = logging.getLogger(__name__)
 
 
-class BME680Reader:
-    """Reads temperature/humidity/pressure/gas resistance from a BME680 over I2C."""
-
-    def __init__(self, i2c_address=config.BME680_I2C_ADDRESS):
-        self.i2c_address = i2c_address
-        self._sensor = None
-        self._last_values = {
-            "temperature_c": None,
-            "humidity_pct": None,
-            "pressure_hpa": None,
-            "gas_resistance_ohm": None,
-        }
-        self._connect()
-
-    def _connect(self):
-        try:
-            import bme680  # adafruit-circuitpython-bme680 alt / pimoroni bme680 lib
-
-            self._sensor = bme680.BME680(i2c_addr=self.i2c_address)
-            self._sensor.set_gas_status(bme680.ENABLE_GAS_MEAS)
-            logger.info("BME680 connected at address 0x%x", self.i2c_address)
-        except Exception as exc:  # pragma: no cover - hardware dependent
-            logger.warning("Could not initialize BME680 (%s). Readings will be None.", exc)
-            self._sensor = None
-
-    def read(self) -> dict:
-        """Returns a dict with the last known values, updated if a fresh read succeeds."""
-        if self._sensor is None:
-            self._connect()
-            if self._sensor is None:
-                return dict(self._last_values)
-
-        try:
-            if self._sensor.get_sensor_data():
-                data = self._sensor.data
-                self._last_values["temperature_c"] = round(data.temperature, 2)
-                self._last_values["humidity_pct"] = round(data.humidity, 2)
-                self._last_values["pressure_hpa"] = round(data.pressure, 2)
-                if getattr(data, "heat_stable", False):
-                    self._last_values["gas_resistance_ohm"] = round(data.gas_resistance, 1)
-        except Exception as exc:  # pragma: no cover - hardware dependent
-            logger.warning("BME680 read failed: %s", exc)
-
-        return dict(self._last_values)
-
-
 class PicoSerialReader:
-    """Reads CO2 / dust / MQ-2 readings sent as JSON lines from the Pico over USB serial."""
+    """Reads all 7 sensor fields (BME680 + CO2 + dust + MQ-2) sent as one JSON
+    line per cycle from the Pico over USB serial."""
+
+    FIELDS = (
+        "temperature_c", "humidity_pct", "pressure_hpa", "gas_resistance_ohm",
+        "co2_ppm", "dust_voltage_v", "mq2_voltage_v",
+    )
 
     def __init__(self, port=config.PICO_SERIAL_PORT, baudrate=config.PICO_SERIAL_BAUDRATE,
                  timeout=config.PICO_SERIAL_TIMEOUT_S):
@@ -77,11 +40,7 @@ class PicoSerialReader:
         self.baudrate = baudrate
         self.timeout = timeout
         self._serial = None
-        self._last_values = {
-            "co2_ppm": None,
-            "dust_voltage_v": None,
-            "mq2_voltage_v": None,
-        }
+        self._last_values = {key: None for key in self.FIELDS}
         self._connect()
 
     def _connect(self):
@@ -98,7 +57,9 @@ class PicoSerialReader:
     def read(self) -> dict:
         """
         Reads one JSON line from the Pico, e.g.
-        {"co2_ppm": 850, "dust_voltage_v": 0.55, "mq2_voltage_v": 0.62}
+        {"temperature_c": 24.1, "humidity_pct": 55.0, "pressure_hpa": 1012.3,
+         "gas_resistance_ohm": 90000, "co2_ppm": 850, "dust_voltage_v": 0.75,
+         "mq2_voltage_v": 0.55}
         Returns last known values on timeout/parse failure.
         """
         if self._serial is None:
@@ -107,6 +68,12 @@ class PicoSerialReader:
                 return dict(self._last_values)
 
         try:
+            # The Pico sends faster than the Pi necessarily reads (READ_INTERVAL_S
+            # can be much longer than the Pico's send interval), so the input
+            # buffer can accumulate several stale lines between reads. Drop
+            # them and read whatever the Pico sends next, so every reading is
+            # fresh instead of growing progressively more lagged over time.
+            self._serial.reset_input_buffer()
             line = self._serial.readline().decode("utf-8", errors="ignore").strip()
             if line:
                 parsed = json.loads(line)
@@ -167,8 +134,10 @@ class MockReader:
 
 class SensorHub:
     """
-    Combines the BME680 and Pico readers (or the mock generator) into a single
-    reading, with the interface main.py actually uses.
+    Wraps the Pico serial reader (or the mock generator) with the interface
+    main.py actually uses. All physical sensors (BME680 included) are wired
+    to the Pico, so in real mode this is just PicoSerialReader - there is no
+    separate Pi-side I2C reader.
     """
 
     def __init__(self, mock_mode: bool = config.MOCK_MODE):
@@ -176,11 +145,9 @@ class SensorHub:
         if mock_mode:
             logger.info("Running in MOCK MODE - generating fake sensor data.")
             self._mock = MockReader()
-            self._bme680 = None
             self._pico = None
         else:
             self._mock = None
-            self._bme680 = BME680Reader()
             self._pico = PicoSerialReader()
 
     def read_all(self) -> dict:
@@ -192,7 +159,4 @@ class SensorHub:
             reading.update(self._mock.read_pico())
             return reading
 
-        reading = {}
-        reading.update(self._bme680.read())
-        reading.update(self._pico.read())
-        return reading
+        return self._pico.read()

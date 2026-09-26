@@ -27,7 +27,9 @@ def _env_int(name: str, default: int) -> int:
 # Set MOCK_MODE=1 (or pass --mock to main.py) to run without any hardware.
 MOCK_MODE = _env_bool("MOCK_MODE", False)
 
-# BME680 I2C address (per project spec).
+# BME680 I2C address. The BME680 is wired to the Pico (not the Pi), so this
+# value is informational/documentation only - it's not read by any Python
+# code on the Pi side. The Pico's own script hardcodes the address it uses.
 BME680_I2C_ADDRESS = int(os.environ.get("BME680_I2C_ADDRESS", "0x77"), 0)
 
 # Serial port the Pico shows up on. On Linux/Raspberry Pi this is typically

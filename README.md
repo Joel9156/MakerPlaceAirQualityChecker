@@ -1,8 +1,9 @@
 # Maker Place Air Quality Checker
 
 A real-time indoor air quality monitor for the Maker Place, built on a
-Raspberry Pi 3B+ with a BME680 (I2C) and a Raspberry Pi Pico (USB serial)
-handling three additional analog sensors (CO2, dust, MQ-2 gas/smoke).
+Raspberry Pi 3B+. All physical sensors - BME680 (I2C), CO2 (SEN0219), dust
+(GP2Y1014AU0F), and MQ-2 gas/smoke - are wired to a Raspberry Pi Pico, which
+sends one JSON line per reading cycle to the Pi over USB serial.
 
 ## Architecture
 
@@ -28,9 +29,9 @@ source venv/bin/activate        # on Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-On a machine without I2C/serial hardware (e.g. your laptop), `smbus2` and
-`bme680` may not be usable at runtime, but that's fine in mock mode — they
-just won't be imported.
+On a machine without serial hardware (e.g. your laptop), `pyserial` won't
+actually connect to anything, but that's fine in mock mode - it's never
+imported there.
 
 ## Run in mock mode (no hardware required)
 
@@ -51,17 +52,20 @@ seconds using generated data.
 
 ## Run on the Raspberry Pi with real hardware
 
-1. Enable I2C (`sudo raspi-config` → Interface Options → I2C) and confirm
-   the BME680 is visible at `0x77`:
-   ```bash
-   i2cdetect -y 1
-   ```
-2. Plug in the Pico over USB. It should show up as `/dev/ttyACM0` (check
-   with `ls /dev/ttyACM*`). Flash it with firmware that prints one JSON line
-   per reading cycle, e.g.:
+1. Wire the BME680, CO2 (SEN0219), dust (GP2Y1014AU0F), and MQ-2 sensors to
+   the Pico (see `Maker_Space_Air_Checker_V2.py` for pin assignments), and
+   upload it to the Pico via Thonny so it runs on boot.
+2. Plug the Pico into the Pi over USB. It should show up as `/dev/ttyACM0`
+   (check with `ls /dev/ttyACM*`). The Pico sends one JSON line per reading
+   cycle with all 7 fields:
    ```json
-   {"co2_ppm": 850, "dust_voltage_v": 0.55, "mq2_voltage_v": 0.62}
+   {"temperature_c": 24.1, "humidity_pct": 55.0, "pressure_hpa": 1012.3,
+    "gas_resistance_ohm": 90000, "co2_ppm": 850, "dust_voltage_v": 0.75,
+    "mq2_voltage_v": 0.55}
    ```
+   `dust_voltage_v` and `mq2_voltage_v` are raw sensor voltages - all
+   conversion to density/status happens on the Pi in `thresholds.py`, so the
+   Pico must not pre-compute those.
 3. Install dependencies (this time they'll actually be used):
    ```bash
    pip install -r requirements.txt

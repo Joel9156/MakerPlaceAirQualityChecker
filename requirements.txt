@@ -1,8 +1,7 @@
 Flask>=3.0
 
-# Real-hardware dependencies. Not required in mock mode, but pip install
-# will fail on non-Pi/non-Linux machines if these are forced, so they are
-# only actually imported by sensors.py when mock mode is off.
+# Real-hardware dependency (talks to the Pico over USB serial). Not required
+# in mock mode - only imported by sensors.py when mock mode is off. All
+# sensors (including the BME680) are wired to the Pico, not the Pi, so no
+# I2C library (smbus2/bme680) is needed on the Pi side.
 pyserial>=3.5
-smbus2>=0.4.3
-bme680>=1.1.1
