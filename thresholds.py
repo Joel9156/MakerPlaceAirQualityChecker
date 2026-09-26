@@ -121,6 +121,9 @@ def evaluate_dust(voltage: float) -> str:
 #    Thresholds are intentionally sensitive (1.2x/1.5x rather than a looser
 #    ratio) because this is a safety-relevant sensor (flammable gas/smoke) -
 #    the team decided false positives are preferable to false negatives here.
+#    Uses a 3-tier Normal/Caution/Danger scale (like dust) rather than CO2's
+#    4-tier Normal/Caution/Warning/Danger scale, since "Danger" communicates
+#    urgency better than "Warning" for a gas/smoke alert.
 # ---------------------------------------------------------------------------
 def evaluate_mq2(current_voltage: float, baseline_voltage: float) -> str:
     if baseline_voltage <= 0:
@@ -131,7 +134,7 @@ def evaluate_mq2(current_voltage: float, baseline_voltage: float) -> str:
     elif ratio < 1.5:
         return "Caution"
     else:
-        return "Warning"       # voltage well above baseline = gas/smoke detected
+        return "Danger"        # voltage well above baseline = gas/smoke detected
 
 
 # ---------------------------------------------------------------------------
