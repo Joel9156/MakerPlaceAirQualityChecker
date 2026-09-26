@@ -102,6 +102,14 @@ main {
 .alert-banner.level-2 { background: var(--orange); }
 .alert-banner.level-3 { background: var(--red); }
 
+/* Rapid environmental change: a cross-sensor, time-based signal (temp AND
+   humidity both rising fast together) - not a single reading crossing a
+   fixed threshold, so it gets its own color rather than reusing
+   level-1/2/3, to stay visually distinct from the per-sensor Caution/
+   Warning/Danger badges. Takes priority over the level-N banner when both
+   are active (see app.js). */
+.alert-banner.rapid-change { background: #7c3aed; }
+
 .alert-banner.hidden {
   display: none;
 }

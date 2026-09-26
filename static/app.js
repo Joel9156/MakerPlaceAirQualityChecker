@@ -57,11 +57,22 @@ function renderCards(payload) {
     container.appendChild(card);
   }
 
+  // Rapid-change is a separate, cross-sensor alert (temp AND humidity both
+  // rising fast together over ~5 minutes) - not one of the per-sensor
+  // Caution/Warning/Danger statuses, so it gets its own banner color/text
+  // and takes priority over the level-N banner when both are active at once.
   const banner = document.getElementById("alert-banner");
-  banner.classList.toggle("hidden", !statuses.ventilation_alert);
-  banner.classList.remove("level-1", "level-2", "level-3");
-  if (statuses.ventilation_alert) {
+  const bannerText = document.getElementById("alert-banner-text");
+  const showBanner = statuses.ventilation_alert || statuses.rapid_change_alert;
+  banner.classList.toggle("hidden", !showBanner);
+  banner.classList.remove("level-1", "level-2", "level-3", "rapid-change");
+
+  if (statuses.rapid_change_alert) {
+    banner.classList.add("rapid-change");
+    bannerText.textContent = `⚠ ${statuses.rapid_change_message}`;
+  } else if (statuses.ventilation_alert) {
     banner.classList.add(`level-${statuses.alert_level}`);
+    bannerText.textContent = "⚠ Ventilation needed — air quality has crossed a caution threshold";
   }
 
   const mockBadge = document.getElementById("mock-badge");

@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import time
+from collections import deque
 from datetime import datetime, timezone
 
 import config
@@ -89,6 +90,71 @@ def safe_evaluate(reading: dict, baseline_gas_resistance_ohm, baseline_mq2_volta
     statuses["ventilation_alert"] = max_level >= 1
     return statuses
 
+
+class RecentReadingsBuffer:
+    """
+    Keeps a short in-memory history of (temperature, humidity) so the read
+    loop can compare "now" against "~RAPID_CHANGE_WINDOW_S ago" without any
+    new storage mechanism - this is process-local, bounded, and reset on
+    restart, which is fine since it only needs to span a few minutes.
+    """
+
+    def __init__(self, window_s: float = config.RAPID_CHANGE_WINDOW_S):
+        self.window_s = window_s
+        self._entries = deque()  # (monotonic_timestamp, temperature_c, humidity_pct)
+
+    def add_and_get_reference(self, temperature_c, humidity_pct):
+        """
+        Records the current reading and returns the (temperature_c,
+        humidity_pct) from the most recent entry that is at least
+        window_s old - i.e. the closest available approximation of
+        "the reading from ~window_s ago" - or None if not enough history
+        has accumulated yet (e.g. right after startup).
+        """
+        now = time.monotonic()
+
+        reference = None
+        for timestamp, temp, humidity in self._entries:
+            if now - timestamp >= self.window_s:
+                reference = (temp, humidity)
+            else:
+                break  # entries are in insertion (time) order, so we can stop early
+
+        # Bound memory: once an entry is older than we could ever need again
+        # (a bit past the window), it can never become a useful reference,
+        # so drop it.
+        while self._entries and (now - self._entries[0][0]) > self.window_s * 1.5:
+            self._entries.popleft()
+
+        if temperature_c is not None and humidity_pct is not None:
+            self._entries.append((now, temperature_c, humidity_pct))
+
+        return reference
+
+
+def check_rapid_change(reference, temperature_c, humidity_pct):
+    """
+    Flags a "Rapid environmental change" alert when BOTH temperature and
+    humidity have risen by more than their configured deltas since the
+    reference reading (see config.RAPID_CHANGE_* for the reasoning behind
+    the default thresholds). Returns (alert: bool, temp_delta, humidity_delta) -
+    the deltas are returned even when alert is False so they can be logged
+    for the report.
+    """
+    if reference is None or temperature_c is None or humidity_pct is None:
+        return False, None, None
+
+    ref_temp, ref_humidity = reference
+    temp_delta = round(temperature_c - ref_temp, 2)
+    humidity_delta = round(humidity_pct - ref_humidity, 2)
+
+    alert = (
+        temp_delta > config.RAPID_CHANGE_TEMP_DELTA_C
+        and humidity_delta > config.RAPID_CHANGE_HUMIDITY_DELTA_PCT
+    )
+    return alert, temp_delta, humidity_delta
+
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -113,6 +179,9 @@ CSV_FIELDS = [
     "status_gas_mq2",
     "ventilation_alert",
     "alert_level",
+    "rapid_change_alert",
+    "temp_delta_5min_c",
+    "humidity_delta_5min_pct",
 ]
 
 
@@ -194,6 +263,9 @@ def append_history_row(reading: dict, statuses: dict, source: str):
         "status_gas_mq2": statuses.get("gas_mq2"),
         "ventilation_alert": statuses.get("ventilation_alert"),
         "alert_level": statuses.get("alert_level"),
+        "rapid_change_alert": statuses.get("rapid_change_alert"),
+        "temp_delta_5min_c": statuses.get("temp_delta_5min_c"),
+        "humidity_delta_5min_pct": statuses.get("humidity_delta_5min_pct"),
     }
     with open(config.HISTORY_CSV_PATH, "a", newline="", encoding="utf-8") as f:
         csv.DictWriter(f, fieldnames=CSV_FIELDS).writerow(row)
@@ -222,6 +294,11 @@ def run(mock_mode: bool):
     hub = SensorHub(mock_mode=mock_mode)
     baseline_gas, baseline_mq2 = capture_baseline(hub)
     source = "mock" if mock_mode else "real"
+    # Process-local only: reset on every restart. That's fine - see the
+    # "no reference yet" branch in check_rapid_change(), which just means
+    # this alert stays silent (not crashed or false-triggered) until the
+    # buffer has accumulated RAPID_CHANGE_WINDOW_S worth of readings again.
+    recent_readings = RecentReadingsBuffer()
 
     logger.info("Starting main read/log loop (interval=%.0fs, source=%s)...",
                 config.READ_INTERVAL_S, source)
@@ -234,8 +311,31 @@ def run(mock_mode: bool):
             baseline_mq2_voltage=baseline_mq2,
         )
 
+        reference = recent_readings.add_and_get_reference(
+            reading.get("temperature_c"), reading.get("humidity_pct")
+        )
+        rapid_alert, temp_delta, humidity_delta = check_rapid_change(
+            reference, reading.get("temperature_c"), reading.get("humidity_pct")
+        )
+        statuses["rapid_change_alert"] = rapid_alert
+        statuses["temp_delta_5min_c"] = temp_delta
+        statuses["humidity_delta_5min_pct"] = humidity_delta
+        # Distinct from the per-sensor Caution/Warning/Danger statuses - this
+        # is a cross-sensor, time-based signal, not a single reading crossing
+        # a fixed threshold, so it gets its own message rather than folding
+        # into ventilation_alert/alert_level.
+        statuses["rapid_change_message"] = (
+            "Rapid environmental change - check ventilation" if rapid_alert else None
+        )
+
         append_history_row(reading, statuses, source)
         write_latest_json(reading, statuses, baseline_gas, baseline_mq2, source)
+
+        if rapid_alert:
+            logger.warning(
+                "RAPID CHANGE ALERT - temp +%.2fC, humidity +%.2f%% over %.0fs",
+                temp_delta, humidity_delta, config.RAPID_CHANGE_WINDOW_S,
+            )
 
         if statuses.get("ventilation_alert"):
             logger.warning("VENTILATION ALERT - level=%s statuses=%s",
