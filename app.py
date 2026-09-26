@@ -108,8 +108,8 @@ SENSOR_DEFINITIONS = [
         "raw_key": "dust_voltage_v",
         "raw_unit": "V",
         "processed_label": "Dust density",
-        "processed_key": "dust_density_mgm3",
-        "processed_unit": "mg/m³",
+        "processed_key": "dust_density_ugm3",
+        "processed_unit": "µg/m³",
         "status_key": "dust",
     },
     {
@@ -169,7 +169,7 @@ def api_history():
     return jsonify({
         "timestamps": [r["timestamp"] for r in rows],
         "co2_ppm": [_to_float(r["co2_ppm"]) for r in rows],
-        "dust_density_mgm3": [_to_float(r["dust_density_mgm3"]) for r in rows],
+        "dust_density_ugm3": [_to_float(r["dust_density_ugm3"]) for r in rows],
     })
 
 

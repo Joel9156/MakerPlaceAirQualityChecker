@@ -76,12 +76,12 @@ def safe_evaluate(reading: dict, baseline_gas_resistance_ohm, baseline_mq2_volta
         if status_key:
             statuses[status_key] = SENSOR_OFFLINE_STATUS
     if "dust_voltage_v" in missing_fields:
-        statuses["dust_density_mgm3"] = None
+        statuses["dust_density_ugm3"] = None
 
     valid_levels = [
         ALERT_LEVELS.get(value, 0)
         for key, value in statuses.items()
-        if key not in ("ventilation_alert", "alert_level", "dust_density_mgm3")
+        if key not in ("ventilation_alert", "alert_level", "dust_density_ugm3")
         and value != SENSOR_OFFLINE_STATUS
     ]
     max_level = max(valid_levels) if valid_levels else 0
@@ -102,7 +102,7 @@ CSV_FIELDS = [
     "pressure_hpa",
     "gas_resistance_ohm",
     "dust_voltage_v",
-    "dust_density_mgm3",
+    "dust_density_ugm3",
     "mq2_voltage_v",
     "status_co2",
     "status_temperature",
@@ -183,7 +183,7 @@ def append_history_row(reading: dict, statuses: dict, source: str):
         "pressure_hpa": reading.get("pressure_hpa"),
         "gas_resistance_ohm": reading.get("gas_resistance_ohm"),
         "dust_voltage_v": reading.get("dust_voltage_v"),
-        "dust_density_mgm3": statuses.get("dust_density_mgm3"),
+        "dust_density_ugm3": statuses.get("dust_density_ugm3"),
         "mq2_voltage_v": reading.get("mq2_voltage_v"),
         "status_co2": statuses.get("co2"),
         "status_temperature": statuses.get("temperature"),
@@ -243,7 +243,7 @@ def run(mock_mode: bool):
         else:
             logger.info("Reading logged: co2=%s temp=%s humidity=%s dust=%s",
                         reading.get("co2_ppm"), reading.get("temperature_c"),
-                        reading.get("humidity_pct"), statuses.get("dust_density_mgm3"))
+                        reading.get("humidity_pct"), statuses.get("dust_density_ugm3"))
 
         elapsed = time.monotonic() - start
         time.sleep(max(0.0, config.READ_INTERVAL_S - elapsed))

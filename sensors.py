@@ -100,10 +100,11 @@ class MockReader:
             "humidity_pct": 45.0,
             "pressure_hpa": 1013.0,
             "gas_resistance_ohm": 110000.0,
-            # thresholds.voltage_to_dust_density_mgm3() computes
-            # 0.17*V - 0.1 and clamps negative results to 0, so V must stay
+            # thresholds.voltage_to_dust_density_ugm3() computes
+            # 170*V - 100 and clamps negative results to 0, so V must stay
             # above ~0.588 for the density to read as anything but zero.
-            # This range keeps density roughly in 0.01-0.08 mg/m3.
+            # This range keeps density roughly in 0-90 ug/m3 (mostly Normal,
+            # occasionally Caution).
             "dust_voltage_v": 0.75,
             "mq2_voltage_v": 0.5,
         }

@@ -53,7 +53,7 @@ gas_sensor = machine.ADC(28)  # ADC2
 while True:
     # --- Dust Sensor: average 30 quick samples over ~300ms to smooth spikes,
     # and send the raw averaged voltage. Converting voltage to a density
-    # (mg/m3) happens on the Pi in thresholds.py, so this script must not
+    # (ug/m3) happens on the Pi in thresholds.py, so this script must not
     # duplicate that calculation.
     running_voltage_sum = 0
     samples = 30

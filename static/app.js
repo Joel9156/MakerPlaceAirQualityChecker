@@ -25,7 +25,7 @@ const SENSOR_CARDS = [
   { key: "humidity", readingKey: "humidity_pct", label: "Humidity", unit: "%", decimals: 0 },
   { key: "pressure", readingKey: "pressure_hpa", label: "Pressure", unit: "hPa", decimals: 1 },
   { key: "voc", readingKey: "gas_resistance_ohm", label: "VOC (gas resistance)", unit: "Ω", decimals: 0 },
-  { key: "dust", readingKey: null, label: "Dust", unit: "mg/m³", decimals: 3, statusKey: "dust_density_mgm3" },
+  { key: "dust", readingKey: null, label: "Dust", unit: "µg/m³", decimals: 1, statusKey: "dust_density_ugm3" },
   { key: "gas_mq2", readingKey: "mq2_voltage_v", label: "Gas / Smoke (MQ-2)", unit: "V", decimals: 3 },
 ];
 
@@ -115,7 +115,7 @@ function updateCharts(history) {
   co2Chart.update();
 
   dustChart.data.labels = labels;
-  dustChart.data.datasets[0].data = history.dust_density_mgm3;
+  dustChart.data.datasets[0].data = history.dust_density_ugm3;
   dustChart.update();
 }
 
@@ -139,7 +139,7 @@ async function refresh() {
 
 document.addEventListener("DOMContentLoaded", () => {
   co2Chart = makeLineChart("co2-chart", "CO2 (ppm)", "#c62828");
-  dustChart = makeLineChart("dust-chart", "Dust (mg/m3)", "#a68b00");
+  dustChart = makeLineChart("dust-chart", "Dust (µg/m3)", "#a68b00");
   refresh();
   setInterval(refresh, REFRESH_MS);
 });

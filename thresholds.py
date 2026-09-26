@@ -13,6 +13,7 @@ Usage:
         "pressure_hpa": 1012.3,
         "gas_resistance_ohm": 42000,   # BME680 raw gas resistance
         "dust_voltage_v": 0.62,        # GP2Y1014AU0F raw analog voltage (Vo)
+        "mq2_voltage_v": 0.9,
     }
     result = evaluate(reading, baseline_gas_resistance_ohm=110000)
     print(result)
@@ -83,24 +84,29 @@ def evaluate_gas_resistance(current_ohm: float, baseline_ohm: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 6) Dust (GP2Y1014AU0F) - uses Sharp's official conversion formula
-#    dust_density(mg/m3) = 0.17 * Vo - 0.1  (Vo: sensor output voltage)
-#    The sensor's effective range is narrow (~0-0.5-0.8 mg/m3), so it's split
-#    into 3 levels within that range.
+# 6) Dust (GP2Y1014AU0F) - uses Sharp's official conversion formula, in ug/m3
+#    (the mg/m3 version - density(mg/m3) = 0.17*Vo - 0.1 - rounds real clean-air
+#    readings like 0.006 mg/m3 down to 0.0 on the dashboard, so this is scaled
+#    up by exactly 1000x to ug/m3, not a different formula):
+#    dust_density(ug/m3) = 170 * Vo - 100  (Vo: sensor output voltage)
+#    Thresholds below use general indoor PM guidance as a rough reference,
+#    loosened from strict WHO residential limits since this is a makerspace
+#    (laser cutters/3D printing add background particulates) and the sensor
+#    itself isn't precision-grade.
 # ---------------------------------------------------------------------------
-def voltage_to_dust_density_mgm3(voltage: float) -> float:
-    density = 0.17 * voltage - 0.1
+def voltage_to_dust_density_ugm3(voltage: float) -> float:
+    density = 170 * voltage - 100
     return max(density, 0.0)
 
 
 def evaluate_dust(voltage: float) -> str:
-    density = voltage_to_dust_density_mgm3(voltage)
-    if density < 0.15:
+    density = voltage_to_dust_density_ugm3(voltage)
+    if density < 50:
         return "Normal"
-    elif density < 0.35:
+    elif density < 150:
         return "Caution"
     else:
-        return "Warning"       # approaching sensor's max detection range (~0.5-0.8 mg/m3)
+        return "Danger"
 
 
 # ---------------------------------------------------------------------------
@@ -150,11 +156,11 @@ def evaluate(reading: dict, baseline_gas_resistance_ohm: float = None,
             reading["gas_resistance_ohm"], baseline_gas_resistance_ohm or 0
         ),
         "dust": evaluate_dust(reading["dust_voltage_v"]),
-        "dust_density_mgm3": round(voltage_to_dust_density_mgm3(reading["dust_voltage_v"]), 3),
+        "dust_density_ugm3": round(voltage_to_dust_density_ugm3(reading["dust_voltage_v"]), 1),
         "gas_mq2": evaluate_mq2(reading["mq2_voltage_v"], baseline_mq2_voltage or 0),
     }
 
-    max_level = max(ALERT_LEVELS.get(v, 0) for k, v in statuses.items() if k != "dust_density_mgm3")
+    max_level = max(ALERT_LEVELS.get(v, 0) for k, v in statuses.items() if k != "dust_density_ugm3")
     statuses["ventilation_alert"] = max_level >= 1   # alert fires if anything is Caution or worse
     statuses["alert_level"] = max_level              # 0=Normal 1=Caution 2=Warning 3=Danger
     return statuses
